@@ -1,6 +1,5 @@
 Exception handling improvements
 Method visibility (private/protected)
-Heredocs
 Enumerator/lazy enumeration
 Binding class
 Refinements

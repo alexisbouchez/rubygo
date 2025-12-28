@@ -192,6 +192,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.LABEL, p.parseLabelAsSymbol)
 	p.registerPrefix(token.STAR, p.parseSplatExpression)
 	p.registerPrefix(token.STAR_STAR, p.parseDoubleSplatExpression)
+	p.registerPrefix(token.HEREDOC_BEGIN, p.parseHeredoc)
 
 	// Register infix parse functions
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -1663,6 +1664,27 @@ func (p *Parser) parseNotExpression() ast.Expression {
 	expression.Expression = p.parseExpression(NOT)
 
 	return expression
+}
+
+func (p *Parser) parseHeredoc() ast.Expression {
+	// Current token is HEREDOC_BEGIN
+	p.nextToken() // Move to STRING_CONTENT
+
+	var content string
+	if p.curTokenIs(token.STRING_CONTENT) {
+		content = p.curToken.Literal
+		p.nextToken() // Move to HEREDOC_END
+	}
+
+	// Skip HEREDOC_END token
+	if p.curTokenIs(token.HEREDOC_END) {
+		// We're done
+	}
+
+	return &ast.StringLiteral{
+		Token: p.curToken,
+		Value: content,
+	}
 }
 
 func (p *Parser) parseDefinedExpression() ast.Expression {
