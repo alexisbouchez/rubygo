@@ -389,6 +389,15 @@ func (l *Lambda) Inspect() string { return "#<Proc (lambda)>" }
 func (l *Lambda) Class() *RubyClass { return ProcClass }
 func (l *Lambda) IsTruthy() bool  { return true }
 
+// MethodVisibility represents the visibility of a method.
+type MethodVisibility int
+
+const (
+	VisibilityPublic MethodVisibility = iota
+	VisibilityPrivate
+	VisibilityProtected
+)
+
 // Method represents a Ruby method.
 type Method struct {
 	Name       string
@@ -396,6 +405,7 @@ type Method struct {
 	Body       *ast.BlockBody
 	Env        *Environment
 	Receiver   Object
+	Visibility MethodVisibility
 }
 
 func (m *Method) Type() Type      { return METHOD_OBJ }

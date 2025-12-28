@@ -2,17 +2,19 @@ package object
 
 // Environment holds variable bindings.
 type Environment struct {
-	store           map[string]Object
-	outer           *Environment
-	constants       map[string]Object
-	self            Object
-	block           *Proc
-	currentClass    *RubyClass
-	currentModule   *RubyModule
-	singletonTarget Object   // Target object for singleton class (class << obj)
-	currentMethod   string   // Current method name (for super)
-	methodArgs      []Object // Original method arguments (for super without args)
-	definingClass   *RubyClass // Class where current method is defined
+	store             map[string]Object
+	outer             *Environment
+	constants         map[string]Object
+	self              Object
+	block             *Proc
+	currentClass      *RubyClass
+	currentModule     *RubyModule
+	singletonTarget   Object           // Target object for singleton class (class << obj)
+	currentMethod     string           // Current method name (for super)
+	methodArgs        []Object         // Original method arguments (for super without args)
+	definingClass     *RubyClass       // Class where current method is defined
+	currentVisibility MethodVisibility // Current visibility for method definitions
+	visibilitySet     bool             // Whether visibility was explicitly set
 }
 
 // NewEnvironment creates a new environment.
@@ -210,4 +212,21 @@ func (e *Environment) DefiningClass() *RubyClass {
 // SetDefiningClass sets the class where the current method is defined.
 func (e *Environment) SetDefiningClass(class *RubyClass) {
 	e.definingClass = class
+}
+
+// CurrentVisibility returns the current visibility for method definitions.
+func (e *Environment) CurrentVisibility() MethodVisibility {
+	if e.visibilitySet {
+		return e.currentVisibility
+	}
+	if e.outer != nil {
+		return e.outer.CurrentVisibility()
+	}
+	return VisibilityPublic
+}
+
+// SetCurrentVisibility sets the current visibility for method definitions.
+func (e *Environment) SetCurrentVisibility(v MethodVisibility) {
+	e.currentVisibility = v
+	e.visibilitySet = true
 }

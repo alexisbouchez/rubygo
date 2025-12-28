@@ -1,5 +1,4 @@
 Exception handling improvements
-Method visibility (private/protected)
 Enumerator/lazy enumeration
 Binding class
 Refinements

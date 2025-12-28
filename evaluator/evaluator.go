@@ -366,6 +366,19 @@ func evalIdentifier(node *ast.Identifier, env *object.Environment) object.Object
 	// Check if it's a method call with no arguments
 	self := env.Self()
 	if self != nil {
+		// Check if self is a class/module and look up module methods (like private, attr_reader)
+		if class, ok := self.(*object.RubyClass); ok {
+			if builtin := getBuiltinMethod(class, node.Value); builtin != nil {
+				return builtin.Fn(class, env)
+			}
+		}
+		if mod, ok := self.(*object.RubyModule); ok {
+			if builtin := getBuiltinMethod(mod, node.Value); builtin != nil {
+				return builtin.Fn(mod, env)
+			}
+		}
+
+		// Check instance methods
 		if class := self.Class(); class != nil {
 			if method, ok := class.LookupMethod(node.Value); ok {
 				return applyMethod(method, self, []object.Object{}, nil, env)
@@ -1385,6 +1398,21 @@ func callMethod(receiver object.Object, methodName string, args []object.Object,
 	// Look up instance method
 	if class := receiver.Class(); class != nil {
 		if method, defClass := lookupMethodWithClass(class, methodName); method != nil {
+			// Check visibility
+			if m, ok := method.(*object.Method); ok {
+				if m.Visibility == object.VisibilityPrivate {
+					// Private methods can only be called on self (implicit receiver)
+					if env.Self() != receiver {
+						return newError("private method `%s' called for %s", methodName, receiver.Inspect())
+					}
+				} else if m.Visibility == object.VisibilityProtected {
+					// Protected methods can be called from same class or subclass
+					callerClass := env.Self().Class()
+					if callerClass != nil && !isSubclassOf(callerClass, defClass) {
+						return newError("protected method `%s' called for %s", methodName, receiver.Inspect())
+					}
+				}
+			}
 			return applyMethodWithContext(method, receiver, args, block, env, defClass)
 		}
 	}
@@ -1527,6 +1555,16 @@ func createInstance(class *object.RubyClass, args []object.Object, block *object
 	}
 
 	return instance
+}
+
+// isSubclassOf checks if class is a subclass of (or equal to) parent
+func isSubclassOf(class, parent *object.RubyClass) bool {
+	for c := class; c != nil; c = c.Superclass {
+		if c == parent {
+			return true
+		}
+	}
+	return false
 }
 
 // lookupMethodWithClass finds a method and returns the class where it was defined
@@ -1874,6 +1912,7 @@ func evalMethodDefinition(node *ast.MethodDefinition, env *object.Environment) o
 		Parameters: node.Parameters,
 		Body:       node.Body,
 		Env:        env,
+		Visibility: env.CurrentVisibility(),
 	}
 
 	// Check for singleton class context (class << obj)

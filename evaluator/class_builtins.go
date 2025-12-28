@@ -149,20 +149,19 @@ func getModuleBuiltins() map[string]*object.Builtin {
 			"private": {
 				Name: "private",
 				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
-					// Simplified: just return nil for now (visibility not fully implemented)
-					return object.NIL
+					return setVisibility(receiver, env, object.VisibilityPrivate, args...)
 				},
 			},
 			"protected": {
 				Name: "protected",
 				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
-					return object.NIL
+					return setVisibility(receiver, env, object.VisibilityProtected, args...)
 				},
 			},
 			"public": {
 				Name: "public",
 				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
-					return object.NIL
+					return setVisibility(receiver, env, object.VisibilityPublic, args...)
 				},
 			},
 			"module_function": {
@@ -473,4 +472,37 @@ func aliasMethodFn(receiver object.Object, env *object.Environment, args ...obje
 	}
 
 	return newError("undefined method `%s'", oldName)
+}
+
+func setVisibility(receiver object.Object, env *object.Environment, visibility object.MethodVisibility, args ...object.Object) object.Object {
+	// If no args, set default visibility for subsequent method definitions
+	if len(args) == 0 {
+		env.SetCurrentVisibility(visibility)
+		return receiver
+	}
+
+	// With args, change visibility of specific methods
+	var methods map[string]object.Object
+	switch recv := receiver.(type) {
+	case *object.RubyClass:
+		methods = recv.Methods
+	case *object.RubyModule:
+		methods = recv.Methods
+	default:
+		return object.NIL
+	}
+
+	for _, arg := range args {
+		name := getMethodName(arg)
+		if name == "" {
+			continue
+		}
+		if method, ok := methods[name]; ok {
+			if m, ok := method.(*object.Method); ok {
+				m.Visibility = visibility
+			}
+		}
+	}
+
+	return args[0]
 }
