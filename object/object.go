@@ -42,6 +42,7 @@ const (
 	EXCEPTION_OBJ    Type = "EXCEPTION"
 	TIME_OBJ         Type = "TIME"
 	DATE_OBJ         Type = "DATE"
+	ENUMERATOR_OBJ   Type = "ENUMERATOR"
 )
 
 // Object is the base interface for all Ruby objects.
@@ -450,6 +451,41 @@ func (bm *BoundMethod) Inspect() string { return fmt.Sprintf("#<Method: %s#%s>",
 func (bm *BoundMethod) Class() *RubyClass { return MethodClass }
 func (bm *BoundMethod) IsTruthy() bool  { return true }
 
+// Enumerator represents a Ruby Enumerator.
+type Enumerator struct {
+	Object     Object                                          // The object being enumerated
+	Method     string                                          // The method to call (e.g., "each")
+	Args       []Object                                        // Arguments to pass to the method
+	Generator  func(yield func(Object) bool)                   // Generator function for external iteration
+	Values     []Object                                        // Cached values for iteration
+	Index      int                                             // Current index for next/peek
+	Started    bool                                            // Whether iteration has started
+	Lazy       bool                                            // Whether this is a lazy enumerator
+	LazyOps    []LazyOperation                                 // Chain of lazy operations
+}
+
+// LazyOperation represents a lazy operation in the chain
+type LazyOperation struct {
+	Type  string  // "map", "select", "reject", "take", "drop", etc.
+	Block *Proc   // The block to apply
+	Count int     // For take/drop operations
+}
+
+func (e *Enumerator) Type() Type { return ENUMERATOR_OBJ }
+func (e *Enumerator) Inspect() string {
+	if e.Lazy {
+		return fmt.Sprintf("#<Enumerator::Lazy: %s:%s>", e.Object.Inspect(), e.Method)
+	}
+	return fmt.Sprintf("#<Enumerator: %s:%s>", e.Object.Inspect(), e.Method)
+}
+func (e *Enumerator) Class() *RubyClass {
+	if e.Lazy {
+		return LazyEnumeratorClass
+	}
+	return EnumeratorClass
+}
+func (e *Enumerator) IsTruthy() bool { return true }
+
 // RubyClass represents a Ruby class.
 type RubyClass struct {
 	Name            string
@@ -574,10 +610,12 @@ var (
 	TypeError         *RubyClass
 	NameErrorClass    *RubyClass
 	NoMethodErrorClass *RubyClass
-	IOClass           *RubyClass
-	KernelModule      *RubyModule
-	ComparableModule  *RubyModule
-	EnumerableModule  *RubyModule
+	IOClass              *RubyClass
+	EnumeratorClass      *RubyClass
+	LazyEnumeratorClass  *RubyClass
+	KernelModule         *RubyModule
+	ComparableModule     *RubyModule
+	EnumerableModule     *RubyModule
 )
 
 func init() {
@@ -786,6 +824,25 @@ func init() {
 		ClassMethods: make(map[string]Object),
 		Constants:    make(map[string]Object),
 	}
+
+	EnumeratorClass = &RubyClass{
+		Name:         "Enumerator",
+		Superclass:   ObjectClass,
+		Methods:      make(map[string]Object),
+		ClassMethods: make(map[string]Object),
+		Constants:    make(map[string]Object),
+	}
+
+	LazyEnumeratorClass = &RubyClass{
+		Name:         "Enumerator::Lazy",
+		Superclass:   EnumeratorClass,
+		Methods:      make(map[string]Object),
+		ClassMethods: make(map[string]Object),
+		Constants:    make(map[string]Object),
+	}
+
+	// Store Lazy as a constant on Enumerator
+	EnumeratorClass.Constants["Lazy"] = LazyEnumeratorClass
 
 	// Modules
 	KernelModule = &RubyModule{

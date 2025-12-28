@@ -1,4 +1,3 @@
-Enumerator/lazy enumeration
 Binding class
 Refinements
 TracePoint

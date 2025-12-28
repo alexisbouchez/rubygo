@@ -86,6 +86,8 @@ func getBuiltinMethod(receiver object.Object, name string) *object.Builtin {
 		typeBuiltin = getModuleBuiltins()[name]
 	case object.ERROR_OBJ:
 		typeBuiltin = getErrorBuiltins()[name]
+	case object.ENUMERATOR_OBJ:
+		typeBuiltin = getEnumeratorBuiltins()[name]
 	}
 
 	if typeBuiltin != nil {
@@ -1815,6 +1817,60 @@ func getArrayBuiltins() map[string]*object.Builtin {
 					return &object.String{Value: receiver.Inspect()}
 				},
 			},
+			"to_enum": {
+				Name: "to_enum",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					method := "each"
+					var enumArgs []object.Object
+					if len(args) > 0 {
+						if sym, ok := args[0].(*object.Symbol); ok {
+							method = sym.Value
+						} else if str, ok := args[0].(*object.String); ok {
+							method = str.Value
+						}
+						if len(args) > 1 {
+							enumArgs = args[1:]
+						}
+					}
+					return &object.Enumerator{
+						Object: receiver,
+						Method: method,
+						Args:   enumArgs,
+					}
+				},
+			},
+			"enum_for": {
+				Name: "enum_for",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					method := "each"
+					var enumArgs []object.Object
+					if len(args) > 0 {
+						if sym, ok := args[0].(*object.Symbol); ok {
+							method = sym.Value
+						} else if str, ok := args[0].(*object.String); ok {
+							method = str.Value
+						}
+						if len(args) > 1 {
+							enumArgs = args[1:]
+						}
+					}
+					return &object.Enumerator{
+						Object: receiver,
+						Method: method,
+						Args:   enumArgs,
+					}
+				},
+			},
+			"lazy": {
+				Name: "lazy",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					return &object.Enumerator{
+						Object: receiver,
+						Method: "each",
+						Lazy:   true,
+					}
+				},
+			},
 		}
 	})
 	return arrayBuiltinsMap
@@ -2100,6 +2156,50 @@ func getHashBuiltins() map[string]*object.Builtin {
 					return newError("KeyError: key not found: %s", args[0].Inspect())
 				},
 			},
+			"to_enum": {
+				Name: "to_enum",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					method := "each"
+					var enumArgs []object.Object
+					if len(args) > 0 {
+						if sym, ok := args[0].(*object.Symbol); ok {
+							method = sym.Value
+						} else if str, ok := args[0].(*object.String); ok {
+							method = str.Value
+						}
+						if len(args) > 1 {
+							enumArgs = args[1:]
+						}
+					}
+					return &object.Enumerator{
+						Object: receiver,
+						Method: method,
+						Args:   enumArgs,
+					}
+				},
+			},
+			"enum_for": {
+				Name: "enum_for",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					method := "each"
+					var enumArgs []object.Object
+					if len(args) > 0 {
+						if sym, ok := args[0].(*object.Symbol); ok {
+							method = sym.Value
+						} else if str, ok := args[0].(*object.String); ok {
+							method = str.Value
+						}
+						if len(args) > 1 {
+							enumArgs = args[1:]
+						}
+					}
+					return &object.Enumerator{
+						Object: receiver,
+						Method: method,
+						Args:   enumArgs,
+					}
+				},
+			},
 		}
 	})
 	return hashBuiltinsMap
@@ -2177,6 +2277,60 @@ func getRangeBuiltins() map[string]*object.Builtin {
 						size = 0
 					}
 					return &object.Integer{Value: size}
+				},
+			},
+			"to_enum": {
+				Name: "to_enum",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					method := "each"
+					var enumArgs []object.Object
+					if len(args) > 0 {
+						if sym, ok := args[0].(*object.Symbol); ok {
+							method = sym.Value
+						} else if str, ok := args[0].(*object.String); ok {
+							method = str.Value
+						}
+						if len(args) > 1 {
+							enumArgs = args[1:]
+						}
+					}
+					return &object.Enumerator{
+						Object: receiver,
+						Method: method,
+						Args:   enumArgs,
+					}
+				},
+			},
+			"enum_for": {
+				Name: "enum_for",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					method := "each"
+					var enumArgs []object.Object
+					if len(args) > 0 {
+						if sym, ok := args[0].(*object.Symbol); ok {
+							method = sym.Value
+						} else if str, ok := args[0].(*object.String); ok {
+							method = str.Value
+						}
+						if len(args) > 1 {
+							enumArgs = args[1:]
+						}
+					}
+					return &object.Enumerator{
+						Object: receiver,
+						Method: method,
+						Args:   enumArgs,
+					}
+				},
+			},
+			"lazy": {
+				Name: "lazy",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					return &object.Enumerator{
+						Object: receiver,
+						Method: "each",
+						Lazy:   true,
+					}
 				},
 			},
 		}
