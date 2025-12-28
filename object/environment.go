@@ -230,3 +230,12 @@ func (e *Environment) SetCurrentVisibility(v MethodVisibility) {
 	e.currentVisibility = v
 	e.visibilitySet = true
 }
+
+// LocalVariableNames returns a list of all local variable names in this environment.
+func (e *Environment) LocalVariableNames() []string {
+	names := make([]string, 0, len(e.store))
+	for name := range e.store {
+		names = append(names, name)
+	}
+	return names
+}

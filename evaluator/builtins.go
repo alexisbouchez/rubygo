@@ -8,7 +8,9 @@ import (
 	"sync"
 
 	"github.com/alexisbouchez/rubylexer/ast"
+	"github.com/alexisbouchez/rubylexer/lexer"
 	"github.com/alexisbouchez/rubylexer/object"
+	"github.com/alexisbouchez/rubylexer/parser"
 )
 
 // Lazy initialization for builtin maps to avoid initialization cycles
@@ -88,6 +90,8 @@ func getBuiltinMethod(receiver object.Object, name string) *object.Builtin {
 		typeBuiltin = getErrorBuiltins()[name]
 	case object.ENUMERATOR_OBJ:
 		typeBuiltin = getEnumeratorBuiltins()[name]
+	case object.BINDING_OBJ:
+		typeBuiltin = getBindingBuiltins()[name]
 	}
 
 	if typeBuiltin != nil {
@@ -699,6 +703,42 @@ func getKernelBuiltins() map[string]*object.Builtin {
 							return result
 						}
 					}
+				},
+			},
+			"binding": {
+				Name: "binding",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					return &object.Binding{
+						Env:      env,
+						Receiver: env.Self(),
+					}
+				},
+			},
+			"eval": {
+				Name: "eval",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					if len(args) == 0 {
+						return newError("wrong number of arguments (given 0, expected 1..3)")
+					}
+
+					code, ok := args[0].(*object.String)
+					if !ok {
+						return newError("no implicit conversion of %s into String", args[0].Type())
+					}
+
+					// Use provided binding or current environment
+					var evalEnv *object.Environment
+					if len(args) > 1 {
+						if binding, ok := args[1].(*object.Binding); ok {
+							evalEnv = binding.Env
+						} else {
+							return newError("wrong argument type %s (expected Binding)", args[1].Type())
+						}
+					} else {
+						evalEnv = env
+					}
+
+					return evalCode(code.Value, evalEnv)
 				},
 			},
 		}
@@ -2736,4 +2776,17 @@ func getErrorBuiltins() map[string]*object.Builtin {
 		}
 	})
 	return errorBuiltinsMap
+}
+
+// evalCode evaluates code in the given environment (for Kernel.eval)
+func evalCode(code string, env *object.Environment) object.Object {
+	l := lexer.New(code)
+	p := parser.New(l)
+	program := p.ParseProgram()
+
+	if len(p.Errors()) > 0 {
+		return newError("SyntaxError: %s", p.Errors()[0])
+	}
+
+	return Eval(program, env)
 }

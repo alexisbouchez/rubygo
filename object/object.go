@@ -43,6 +43,7 @@ const (
 	TIME_OBJ         Type = "TIME"
 	DATE_OBJ         Type = "DATE"
 	ENUMERATOR_OBJ   Type = "ENUMERATOR"
+	BINDING_OBJ      Type = "BINDING"
 )
 
 // Object is the base interface for all Ruby objects.
@@ -486,6 +487,19 @@ func (e *Enumerator) Class() *RubyClass {
 }
 func (e *Enumerator) IsTruthy() bool { return true }
 
+// Binding represents a Ruby Binding object that captures execution context.
+type Binding struct {
+	Env      *Environment // The captured environment
+	Receiver Object       // The value of self in the binding
+	File     string       // Source file where binding was created
+	Line     int          // Source line where binding was created
+}
+
+func (b *Binding) Type() Type         { return BINDING_OBJ }
+func (b *Binding) Inspect() string    { return "#<Binding>" }
+func (b *Binding) Class() *RubyClass  { return BindingClass }
+func (b *Binding) IsTruthy() bool     { return true }
+
 // RubyClass represents a Ruby class.
 type RubyClass struct {
 	Name            string
@@ -613,6 +627,7 @@ var (
 	IOClass              *RubyClass
 	EnumeratorClass      *RubyClass
 	LazyEnumeratorClass  *RubyClass
+	BindingClass         *RubyClass
 	KernelModule         *RubyModule
 	ComparableModule     *RubyModule
 	EnumerableModule     *RubyModule
@@ -843,6 +858,14 @@ func init() {
 
 	// Store Lazy as a constant on Enumerator
 	EnumeratorClass.Constants["Lazy"] = LazyEnumeratorClass
+
+	BindingClass = &RubyClass{
+		Name:         "Binding",
+		Superclass:   ObjectClass,
+		Methods:      make(map[string]Object),
+		ClassMethods: make(map[string]Object),
+		Constants:    make(map[string]Object),
+	}
 
 	// Modules
 	KernelModule = &RubyModule{

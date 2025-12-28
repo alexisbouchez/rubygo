@@ -1,4 +1,3 @@
-Binding class
 Refinements
 TracePoint
 ObjectSpace
