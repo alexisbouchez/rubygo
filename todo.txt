@@ -2,9 +2,7 @@ Exception handling improvements
 Method visibility (private/protected)
 Constants/namespacing (Module::Class::CONSTANT)
 Heredocs
-OpenStruct
 Enumerator/lazy enumeration
-Method objects (method(:name).call)
 Singleton pattern (class << self)
 Super with arguments
 Binding class

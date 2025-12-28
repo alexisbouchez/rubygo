@@ -33,6 +33,7 @@ const (
 	PROC_OBJ         Type = "PROC"
 	LAMBDA_OBJ       Type = "LAMBDA"
 	METHOD_OBJ       Type = "METHOD"
+	BOUND_METHOD_OBJ Type = "BOUND_METHOD"
 	BUILTIN_OBJ      Type = "BUILTIN"
 	CLASS_OBJ        Type = "CLASS"
 	MODULE_OBJ       Type = "MODULE"
@@ -415,6 +416,19 @@ func (b *Builtin) Type() Type      { return BUILTIN_OBJ }
 func (b *Builtin) Inspect() string { return fmt.Sprintf("#<Builtin: %s>", b.Name) }
 func (b *Builtin) Class() *RubyClass { return nil }
 func (b *Builtin) IsTruthy() bool  { return true }
+
+// BoundMethod represents a method bound to a specific receiver.
+type BoundMethod struct {
+	Name     string
+	Receiver Object
+	Method   *Method  // For user-defined methods
+	Builtin  *Builtin // For built-in methods
+}
+
+func (bm *BoundMethod) Type() Type      { return BOUND_METHOD_OBJ }
+func (bm *BoundMethod) Inspect() string { return fmt.Sprintf("#<Method: %s#%s>", bm.Receiver.Class().Name, bm.Name) }
+func (bm *BoundMethod) Class() *RubyClass { return MethodClass }
+func (bm *BoundMethod) IsTruthy() bool  { return true }
 
 // RubyClass represents a Ruby class.
 type RubyClass struct {

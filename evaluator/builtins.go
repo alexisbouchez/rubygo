@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/alexisbouchez/rubylexer/ast"
 	"github.com/alexisbouchez/rubylexer/object"
 )
 
@@ -24,6 +25,7 @@ var (
 	nilBuiltinsOnce      sync.Once
 	booleanBuiltinsOnce  sync.Once
 	procBuiltinsOnce     sync.Once
+	methodBuiltinsOnce   sync.Once
 
 	objectBuiltinsMap  map[string]*object.Builtin
 	kernelBuiltinsMap  map[string]*object.Builtin
@@ -37,6 +39,7 @@ var (
 	nilBuiltinsMap     map[string]*object.Builtin
 	booleanBuiltinsMap map[string]*object.Builtin
 	procBuiltinsMap    map[string]*object.Builtin
+	methodBuiltinsMap  map[string]*object.Builtin
 )
 
 // Built-in method lookup
@@ -64,6 +67,8 @@ func getBuiltinMethod(receiver object.Object, name string) *object.Builtin {
 		typeBuiltin = getBooleanBuiltins()[name]
 	case object.PROC_OBJ, object.LAMBDA_OBJ:
 		typeBuiltin = getProcBuiltins()[name]
+	case object.METHOD_OBJ, object.BOUND_METHOD_OBJ:
+		typeBuiltin = getMethodBuiltins()[name]
 	case object.REGEXP_OBJ:
 		typeBuiltin = getRegexpBuiltins()[name]
 	case object.TIME_OBJ:
@@ -446,6 +451,58 @@ func getObjectBuiltins() map[string]*object.Builtin {
 				},
 			},
 			"to_json": getToJSONBuiltin(),
+			"method": {
+				Name: "method",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					if len(args) < 1 {
+						return newError("wrong number of arguments (given 0, expected 1)")
+					}
+
+					methodName := ""
+					switch n := args[0].(type) {
+					case *object.Symbol:
+						methodName = n.Value
+					case *object.String:
+						methodName = n.Value
+					default:
+						return newError("no implicit conversion of %s into Symbol", args[0].Type())
+					}
+
+					// Look up the method
+					if class := receiver.Class(); class != nil {
+						if method, ok := class.LookupMethod(methodName); ok {
+							if m, ok := method.(*object.Method); ok {
+								// Return a bound method
+								return &object.Method{
+									Name:       m.Name,
+									Parameters: m.Parameters,
+									Body:       m.Body,
+									Env:        m.Env,
+									Receiver:   receiver,
+								}
+							}
+							if b, ok := method.(*object.Builtin); ok {
+								return &object.BoundMethod{
+									Name:     methodName,
+									Receiver: receiver,
+									Builtin:  b,
+								}
+							}
+						}
+					}
+
+					// Check builtins
+					if builtin := getBuiltinMethod(receiver, methodName); builtin != nil {
+						return &object.BoundMethod{
+							Name:     methodName,
+							Receiver: receiver,
+							Builtin:  builtin,
+						}
+					}
+
+					return newError("undefined method `%s'", methodName)
+				},
+			},
 		}
 	})
 	return objectBuiltinsMap
@@ -2281,6 +2338,139 @@ func getProcBuiltins() map[string]*object.Builtin {
 	return procBuiltinsMap
 }
 
+func getMethodBuiltins() map[string]*object.Builtin {
+	methodBuiltinsOnce.Do(func() {
+		methodBuiltinsMap = map[string]*object.Builtin{
+			"call": {
+				Name: "call",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					switch m := receiver.(type) {
+					case *object.Method:
+						// User-defined method with bound receiver
+						return callUserMethod(m, m.Receiver, args, env)
+					case *object.BoundMethod:
+						if m.Builtin != nil {
+							return m.Builtin.Fn(m.Receiver, env, args...)
+						}
+						if m.Method != nil {
+							return callUserMethod(m.Method, m.Receiver, args, env)
+						}
+					}
+					return newError("not a callable method object")
+				},
+			},
+			"name": {
+				Name: "name",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					switch m := receiver.(type) {
+					case *object.Method:
+						return &object.Symbol{Value: m.Name}
+					case *object.BoundMethod:
+						return &object.Symbol{Value: m.Name}
+					}
+					return object.NIL
+				},
+			},
+			"arity": {
+				Name: "arity",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					switch m := receiver.(type) {
+					case *object.Method:
+						return &object.Integer{Value: int64(len(m.Parameters))}
+					case *object.BoundMethod:
+						if m.Method != nil {
+							return &object.Integer{Value: int64(len(m.Method.Parameters))}
+						}
+						// For builtins, we can't determine arity easily
+						return &object.Integer{Value: -1}
+					}
+					return &object.Integer{Value: 0}
+				},
+			},
+			"receiver": {
+				Name: "receiver",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					switch m := receiver.(type) {
+					case *object.Method:
+						if m.Receiver != nil {
+							return m.Receiver
+						}
+					case *object.BoundMethod:
+						return m.Receiver
+					}
+					return object.NIL
+				},
+			},
+			"owner": {
+				Name: "owner",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					switch m := receiver.(type) {
+					case *object.Method:
+						if m.Receiver != nil {
+							return m.Receiver.Class()
+						}
+					case *object.BoundMethod:
+						if m.Receiver != nil {
+							return m.Receiver.Class()
+						}
+					}
+					return object.NIL
+				},
+			},
+			"to_proc": {
+				Name: "to_proc",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					switch m := receiver.(type) {
+					case *object.Method:
+						return &object.Proc{
+							Parameters: convertMethodParamsToBlockParams(m.Parameters),
+							Body:       m.Body,
+							Env:        m.Env,
+						}
+					case *object.BoundMethod:
+						if m.Method != nil {
+							return &object.Proc{
+								Parameters: convertMethodParamsToBlockParams(m.Method.Parameters),
+								Body:       m.Method.Body,
+								Env:        m.Method.Env,
+							}
+						}
+					}
+					return object.NIL
+				},
+			},
+			"unbind": {
+				Name: "unbind",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					// Returns an UnboundMethod - for now just return the method without receiver
+					switch m := receiver.(type) {
+					case *object.Method:
+						return &object.Method{
+							Name:       m.Name,
+							Parameters: m.Parameters,
+							Body:       m.Body,
+							Env:        m.Env,
+							Receiver:   nil,
+						}
+					case *object.BoundMethod:
+						if m.Method != nil {
+							return &object.Method{
+								Name:       m.Method.Name,
+								Parameters: m.Method.Parameters,
+								Body:       m.Method.Body,
+								Env:        m.Method.Env,
+								Receiver:   nil,
+							}
+						}
+					}
+					return object.NIL
+				},
+			},
+		}
+	})
+	return methodBuiltinsMap
+}
+
 // Helper functions
 
 func formatInt(val int64, base int) string {
@@ -2316,4 +2506,40 @@ func initKernelMethods() {
 
 func init() {
 	initKernelMethods()
+}
+
+// callUserMethod calls a user-defined method with a specific receiver
+func callUserMethod(method *object.Method, receiver object.Object, args []object.Object, env *object.Environment) object.Object {
+	methodEnv := object.NewEnclosedEnvironment(method.Env)
+	methodEnv.SetSelf(receiver)
+
+	// Bind parameters
+	for i, param := range method.Parameters {
+		if i < len(args) {
+			methodEnv.Set(param.Name, args[i])
+		} else if param.Default != nil {
+			// Use default value
+			defaultVal := Eval(param.Default, methodEnv)
+			methodEnv.Set(param.Name, defaultVal)
+		} else {
+			methodEnv.Set(param.Name, object.NIL)
+		}
+	}
+
+	result := evalBlockBody(method.Body, methodEnv)
+	if rv, ok := result.(*object.ReturnValue); ok {
+		return rv.Value
+	}
+	return result
+}
+
+// convertMethodParamsToBlockParams converts method parameters to block parameters
+func convertMethodParamsToBlockParams(params []*ast.MethodParameter) []*ast.BlockParameter {
+	blockParams := make([]*ast.BlockParameter, len(params))
+	for i, p := range params {
+		blockParams[i] = &ast.BlockParameter{
+			Name: p.Name,
+		}
+	}
+	return blockParams
 }
