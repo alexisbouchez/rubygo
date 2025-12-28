@@ -84,6 +84,8 @@ func getBuiltinMethod(receiver object.Object, name string) *object.Builtin {
 		typeBuiltin = getClassBuiltins()[name]
 	case object.MODULE_OBJ:
 		typeBuiltin = getModuleBuiltins()[name]
+	case object.ERROR_OBJ:
+		typeBuiltin = getErrorBuiltins()[name]
 	}
 
 	if typeBuiltin != nil {
@@ -2542,4 +2544,42 @@ func convertMethodParamsToBlockParams(params []*ast.MethodParameter) []*ast.Bloc
 		}
 	}
 	return blockParams
+}
+
+// Error builtins
+
+var errorBuiltinsOnce sync.Once
+var errorBuiltinsMap map[string]*object.Builtin
+
+func getErrorBuiltins() map[string]*object.Builtin {
+	errorBuiltinsOnce.Do(func() {
+		errorBuiltinsMap = map[string]*object.Builtin{
+			"message": {
+				Name: "message",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					err := receiver.(*object.Error)
+					return &object.String{Value: err.Message}
+				},
+			},
+			"to_s": {
+				Name: "to_s",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					err := receiver.(*object.Error)
+					return &object.String{Value: err.Message}
+				},
+			},
+			"backtrace": {
+				Name: "backtrace",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					err := receiver.(*object.Error)
+					elements := make([]object.Object, len(err.Backtrace))
+					for i, line := range err.Backtrace {
+						elements[i] = &object.String{Value: line}
+					}
+					return &object.Array{Elements: elements}
+				},
+			},
+		}
+	})
+	return errorBuiltinsMap
 }

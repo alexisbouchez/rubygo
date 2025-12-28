@@ -1047,7 +1047,8 @@ func (p *Parser) parseModifierIf(left ast.Expression) ast.Expression {
 	}
 
 	p.nextToken()
-	expression.Condition = p.parseExpression(LOWEST)
+	// Use parseBlockContextExpression to stop at rescue/else/ensure/end
+	expression.Condition = p.parseBlockContextExpression(LOWEST)
 
 	return expression
 }
@@ -1060,7 +1061,8 @@ func (p *Parser) parseModifierUnless(left ast.Expression) ast.Expression {
 	}
 
 	p.nextToken()
-	expression.Condition = p.parseExpression(LOWEST)
+	// Use parseBlockContextExpression to stop at rescue/else/ensure/end
+	expression.Condition = p.parseBlockContextExpression(LOWEST)
 
 	return expression
 }
@@ -1073,7 +1075,8 @@ func (p *Parser) parseModifierWhile(left ast.Expression) ast.Expression {
 	}
 
 	p.nextToken()
-	expression.Condition = p.parseExpression(LOWEST)
+	// Use parseBlockContextExpression to stop at rescue/else/ensure/end
+	expression.Condition = p.parseBlockContextExpression(LOWEST)
 
 	return expression
 }
@@ -1086,7 +1089,8 @@ func (p *Parser) parseModifierUntil(left ast.Expression) ast.Expression {
 	}
 
 	p.nextToken()
-	expression.Condition = p.parseExpression(LOWEST)
+	// Use parseBlockContextExpression to stop at rescue/else/ensure/end
+	expression.Condition = p.parseBlockContextExpression(LOWEST)
 
 	return expression
 }
@@ -1098,7 +1102,8 @@ func (p *Parser) parseRescueModifier(left ast.Expression) ast.Expression {
 	}
 
 	p.nextToken()
-	expression.Rescue = p.parseExpression(RESCUE_MOD)
+	// Use parseBlockContextExpression to stop at else/ensure/end
+	expression.Rescue = p.parseBlockContextExpression(RESCUE_MOD)
 
 	return expression
 }
@@ -1161,13 +1166,13 @@ func (p *Parser) parseArgumentsWithoutParens() []ast.Expression {
 	args := []ast.Expression{}
 
 	p.nextToken()
-	// Parse first argument with higher precedence to stop at modifier keywords
-	args = append(args, p.parseExpression(MODIFIER))
+	// Parse first argument, stopping at block keywords
+	args = append(args, p.parseBlockContextExpression(ASSIGNMENT))
 
 	for p.peekTokenIs(token.COMMA) {
 		p.nextToken() // move to comma
 		p.nextToken() // move to next arg
-		args = append(args, p.parseExpression(MODIFIER))
+		args = append(args, p.parseBlockContextExpression(ASSIGNMENT))
 	}
 
 	return args
@@ -1559,21 +1564,25 @@ func (p *Parser) parseBeginExpression() ast.Expression {
 func (p *Parser) parseRescueClause() *ast.RescueClause {
 	rescue := &ast.RescueClause{Token: p.curToken}
 
+	// Check if there's content on the same line (before consuming newline)
+	hasExceptionOnSameLine := !p.peekTokenIs(token.NEWLINE) && !p.peekTokenIs(token.KEYWORD_END)
+
 	p.nextToken() // move past 'rescue'
 
-	// Parse exception types if present
+	// Parse exception types if present (only if on same line or is a constant)
 	// rescue StandardError => e
 	// rescue SyntaxError, RuntimeError => e
 	// rescue => e (no exception type)
 	// rescue (bare)
-	if !p.curTokenIs(token.EQUAL_GREATER) &&
+	if hasExceptionOnSameLine &&
+		!p.curTokenIs(token.EQUAL_GREATER) &&
 		!p.curTokenIs(token.KEYWORD_THEN) &&
 		!p.curTokenIs(token.KEYWORD_RESCUE) &&
 		!p.curTokenIs(token.KEYWORD_ELSE) &&
 		!p.curTokenIs(token.KEYWORD_ENSURE) &&
 		!p.curTokenIs(token.KEYWORD_END) &&
 		!p.curTokenIs(token.EOF) &&
-		(p.curTokenIs(token.CONSTANT) || p.curTokenIs(token.IDENT)) {
+		p.curTokenIs(token.CONSTANT) {
 
 		// Parse first exception type
 		rescue.Exceptions = append(rescue.Exceptions, &ast.Constant{

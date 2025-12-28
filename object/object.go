@@ -29,6 +29,7 @@ const (
 	RETURN_VALUE_OBJ Type = "RETURN_VALUE"
 	BREAK_VALUE_OBJ  Type = "BREAK_VALUE"
 	NEXT_VALUE_OBJ   Type = "NEXT_VALUE"
+	RETRY_VALUE_OBJ  Type = "RETRY_VALUE"
 	ERROR_OBJ        Type = "ERROR"
 	PROC_OBJ         Type = "PROC"
 	LAMBDA_OBJ       Type = "LAMBDA"
@@ -336,11 +337,20 @@ func (nv *NextValue) Inspect() string { return nv.Value.Inspect() }
 func (nv *NextValue) Class() *RubyClass { return nil }
 func (nv *NextValue) IsTruthy() bool  { return nv.Value.IsTruthy() }
 
+// RetryValue signals retry from a rescue block.
+type RetryValue struct{}
+
+func (rv *RetryValue) Type() Type         { return RETRY_VALUE_OBJ }
+func (rv *RetryValue) Inspect() string    { return "retry" }
+func (rv *RetryValue) Class() *RubyClass  { return nil }
+func (rv *RetryValue) IsTruthy() bool     { return true }
+
 // Error represents a Ruby error.
 type Error struct {
 	Message   string
 	Class_    *RubyClass
 	Backtrace []string
+	Caught    bool // true when caught by rescue, prevents re-propagation
 }
 
 func (e *Error) Type() Type      { return ERROR_OBJ }

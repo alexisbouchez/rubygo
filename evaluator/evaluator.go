@@ -64,7 +64,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return newError("redo not yet supported")
 
 	case *ast.RetryStatement:
-		return newError("retry not yet supported")
+		return &object.RetryValue{}
 
 	// Literals
 	case *ast.IntegerLiteral:
@@ -273,6 +273,7 @@ func evalBlockBody(body *ast.BlockBody, env *object.Environment) object.Object {
 			if rt == object.RETURN_VALUE_OBJ ||
 				rt == object.BREAK_VALUE_OBJ ||
 				rt == object.NEXT_VALUE_OBJ ||
+				rt == object.RETRY_VALUE_OBJ ||
 				rt == object.ERROR_OBJ {
 				return result
 			}
@@ -1818,21 +1819,37 @@ func evalForExpression(node *ast.ForExpression, env *object.Environment) object.
 }
 
 func evalBeginExpression(node *ast.BeginExpression, env *object.Environment) object.Object {
-	result := evalBlockBody(node.Body, env)
+	var result object.Object
+
+retry:
+	result = evalBlockBody(node.Body, env)
 
 	// Check for errors/exceptions
+	exceptionRaised := false
 	if err, ok := result.(*object.Error); ok {
+		exceptionRaised = true
 		// Try to match rescue clauses
 		for _, rescue := range node.Rescues {
 			if matchesRescue(err, rescue) {
 				rescueEnv := object.NewEnclosedEnvironment(env)
 				if rescue.Variable != nil {
+					// Mark error as caught so it won't propagate when accessed
+					err.Caught = true
 					rescueEnv.Set(rescue.Variable.Value, err)
 				}
 				result = evalBlockBody(rescue.Body, rescueEnv)
+				// Check for retry
+				if _, isRetry := result.(*object.RetryValue); isRetry {
+					goto retry
+				}
 				break
 			}
 		}
+	}
+
+	// Execute else block if no exception was raised
+	if !exceptionRaised && node.Else != nil {
+		result = evalBlockBody(node.Else, env)
 	}
 
 	// Execute ensure block
@@ -2126,8 +2143,12 @@ func isTruthy(obj object.Object) bool {
 }
 
 func isError(obj object.Object) bool {
-	if obj != nil {
-		return obj.Type() == object.ERROR_OBJ
+	if obj != nil && obj.Type() == object.ERROR_OBJ {
+		// Caught errors are not treated as propagating exceptions
+		if err, ok := obj.(*object.Error); ok {
+			return !err.Caught
+		}
+		return true
 	}
 	return false
 }
