@@ -15,6 +15,7 @@ type Environment struct {
 	definingClass     *RubyClass       // Class where current method is defined
 	currentVisibility MethodVisibility // Current visibility for method definitions
 	visibilitySet     bool             // Whether visibility was explicitly set
+	activeRefinements []*RubyModule    // Active refinements in lexical scope
 }
 
 // NewEnvironment creates a new environment.
@@ -238,4 +239,54 @@ func (e *Environment) LocalVariableNames() []string {
 		names = append(names, name)
 	}
 	return names
+}
+
+// ActiveRefinements returns all active refinements in the current lexical scope.
+func (e *Environment) ActiveRefinements() []*RubyModule {
+	if e.activeRefinements != nil {
+		return e.activeRefinements
+	}
+	if e.outer != nil {
+		return e.outer.ActiveRefinements()
+	}
+	return nil
+}
+
+// AddRefinement adds a module's refinements to the active refinements.
+func (e *Environment) AddRefinement(mod *RubyModule) {
+	if e.activeRefinements == nil {
+		// Copy from parent if exists
+		if e.outer != nil {
+			parent := e.outer.ActiveRefinements()
+			if parent != nil {
+				e.activeRefinements = make([]*RubyModule, len(parent))
+				copy(e.activeRefinements, parent)
+			} else {
+				e.activeRefinements = make([]*RubyModule, 0)
+			}
+		} else {
+			e.activeRefinements = make([]*RubyModule, 0)
+		}
+	}
+	e.activeRefinements = append(e.activeRefinements, mod)
+}
+
+// LookupRefinedMethod looks for a method in active refinements for the given class.
+func (e *Environment) LookupRefinedMethod(class *RubyClass, methodName string) (Object, bool) {
+	refinements := e.ActiveRefinements()
+	if refinements == nil {
+		return nil, false
+	}
+	// Check refinements in reverse order (most recently added first)
+	for i := len(refinements) - 1; i >= 0; i-- {
+		mod := refinements[i]
+		if mod.Refinements != nil {
+			if ref, ok := mod.Refinements[class]; ok {
+				if method, ok := ref.Methods[methodName]; ok {
+					return method, true
+				}
+			}
+		}
+	}
+	return nil, false
 }

@@ -178,6 +178,14 @@ func getModuleBuiltins() map[string]*object.Builtin {
 				Name: "module_eval",
 				Fn:   classEvalFn, // Same as class_eval
 			},
+			"refine": {
+				Name: "refine",
+				Fn:   refineFn,
+			},
+			"using": {
+				Name: "using",
+				Fn:   usingFn,
+			},
 		}
 	})
 	return moduleBuiltinsMap
@@ -505,4 +513,75 @@ func setVisibility(receiver object.Object, env *object.Environment, visibility o
 	}
 
 	return args[0]
+}
+
+// refineFn implements Module#refine - creates a refinement for a class
+func refineFn(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+	if len(args) < 1 {
+		return newError("wrong number of arguments (given 0, expected 1)")
+	}
+
+	// Must be called on a module
+	mod, ok := receiver.(*object.RubyModule)
+	if !ok {
+		return newError("refine must be called on a module")
+	}
+
+	// First arg must be a class
+	targetClass, ok := args[0].(*object.RubyClass)
+	if !ok {
+		return newError("wrong argument type %s (expected Class)", args[0].Type())
+	}
+
+	// Must have a block
+	block := env.Block()
+	if block == nil {
+		return newError("no block given")
+	}
+
+	// Create or get the refinement for this class
+	if mod.Refinements == nil {
+		mod.Refinements = make(map[*object.RubyClass]*object.Refinement)
+	}
+
+	refinement, exists := mod.Refinements[targetClass]
+	if !exists {
+		refinement = &object.Refinement{
+			TargetClass: targetClass,
+			Methods:     make(map[string]object.Object),
+		}
+		mod.Refinements[targetClass] = refinement
+	}
+
+	// Evaluate the block to define methods
+	// Methods defined in this block should go into the refinement
+	refineEnv := object.NewEnclosedEnvironment(block.Env)
+	refineEnv.SetSelf(refinement)
+
+	// We need a special context for method definitions in refinements
+	// Set a marker so evalMethodDefinition knows to add to refinement
+	result := evalBlockBody(block.Body, refineEnv)
+
+	// Copy methods from the environment/block execution to the refinement
+	// This is handled by checking self in method definition
+
+	return result
+}
+
+// usingFn implements Module#using - activates refinements in current scope
+func usingFn(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+	if len(args) < 1 {
+		return newError("wrong number of arguments (given 0, expected 1)")
+	}
+
+	// First arg must be a module with refinements
+	mod, ok := args[0].(*object.RubyModule)
+	if !ok {
+		return newError("wrong argument type %s (expected Module)", args[0].Type())
+	}
+
+	// Add to active refinements
+	env.AddRefinement(mod)
+
+	return object.NIL
 }

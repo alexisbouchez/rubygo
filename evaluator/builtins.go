@@ -741,6 +741,22 @@ func getKernelBuiltins() map[string]*object.Builtin {
 					return evalCode(code.Value, evalEnv)
 				},
 			},
+			"using": {
+				Name: "using",
+				Fn: func(receiver object.Object, env *object.Environment, args ...object.Object) object.Object {
+					if len(args) < 1 {
+						return newError("wrong number of arguments (given 0, expected 1)")
+					}
+
+					mod, ok := args[0].(*object.RubyModule)
+					if !ok {
+						return newError("wrong argument type %s (expected Module)", args[0].Type())
+					}
+
+					env.AddRefinement(mod)
+					return object.NIL
+				},
+			},
 		}
 	})
 	return kernelBuiltinsMap

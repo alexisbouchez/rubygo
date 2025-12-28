@@ -1396,6 +1396,13 @@ func callMethod(receiver object.Object, methodName string, args []object.Object,
 		}
 	}
 
+	// Check for refined methods (takes precedence over regular instance methods)
+	if class := receiver.Class(); class != nil {
+		if method, ok := env.LookupRefinedMethod(class, methodName); ok {
+			return applyMethod(method, receiver, args, block, env)
+		}
+	}
+
 	// Look up instance method
 	if class := receiver.Class(); class != nil {
 		if method, defClass := lookupMethodWithClass(class, methodName); method != nil {
@@ -1972,6 +1979,12 @@ func evalMethodDefinition(node *ast.MethodDefinition, env *object.Environment) o
 	// Add to current class or module based on self
 	self := env.Self()
 	if self != nil {
+		// Check for refinement context
+		if refinement, ok := self.(*object.Refinement); ok {
+			refinement.Methods[node.Name] = method
+			return &object.Symbol{Value: node.Name}
+		}
+
 		if class, ok := self.(*object.RubyClass); ok {
 			if node.Receiver != nil {
 				// Class method

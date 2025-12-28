@@ -44,6 +44,7 @@ const (
 	DATE_OBJ         Type = "DATE"
 	ENUMERATOR_OBJ   Type = "ENUMERATOR"
 	BINDING_OBJ      Type = "BINDING"
+	REFINEMENT_OBJ   Type = "REFINEMENT"
 )
 
 // Object is the base interface for all Ruby objects.
@@ -548,15 +549,27 @@ func (c *RubyClass) LookupClassMethod(name string) (Object, bool) {
 
 // RubyModule represents a Ruby module.
 type RubyModule struct {
-	Name      string
-	Methods   map[string]Object
-	Constants map[string]Object
+	Name        string
+	Methods     map[string]Object
+	Constants   map[string]Object
+	Refinements map[*RubyClass]*Refinement // Refinements defined in this module
 }
 
-func (m *RubyModule) Type() Type      { return MODULE_OBJ }
-func (m *RubyModule) Inspect() string { return m.Name }
-func (m *RubyModule) Class() *RubyClass { return ModuleClass }
-func (m *RubyModule) IsTruthy() bool  { return true }
+func (m *RubyModule) Type() Type         { return MODULE_OBJ }
+func (m *RubyModule) Inspect() string    { return m.Name }
+func (m *RubyModule) Class() *RubyClass  { return ModuleClass }
+func (m *RubyModule) IsTruthy() bool     { return true }
+
+// Refinement represents a refinement for a specific class.
+type Refinement struct {
+	TargetClass *RubyClass        // The class being refined
+	Methods     map[string]Object // Refined methods
+}
+
+func (r *Refinement) Type() Type         { return REFINEMENT_OBJ }
+func (r *Refinement) Inspect() string    { return fmt.Sprintf("#<refinement:%s>", r.TargetClass.Name) }
+func (r *Refinement) Class() *RubyClass  { return nil }
+func (r *Refinement) IsTruthy() bool     { return true }
 
 // Instance represents an instance of a Ruby class.
 type Instance struct {
