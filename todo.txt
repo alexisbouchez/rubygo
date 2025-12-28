@@ -1,0 +1,18 @@
+Time/Date classes
+Struct class
+JSON module
+YAML module
+Exception handling improvements
+Method visibility (private/protected)
+Constants/namespacing (Module::Class::CONSTANT)
+Safe navigation operator (&.)
+Heredocs
+OpenStruct
+Enumerator/lazy enumeration
+Method objects (method(:name).call)
+Singleton pattern (class << self)
+Super with arguments
+Binding class
+Refinements
+TracePoint
+ObjectSpace

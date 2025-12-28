@@ -1,0 +1,4 @@
+ruby/
+*.swp
+*.swo
+.DS_Store

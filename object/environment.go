@@ -1,0 +1,145 @@
+package object
+
+// Environment holds variable bindings.
+type Environment struct {
+	store         map[string]Object
+	outer         *Environment
+	constants     map[string]Object
+	self          Object
+	block         *Proc
+	currentClass  *RubyClass
+	currentModule *RubyModule
+}
+
+// NewEnvironment creates a new environment.
+func NewEnvironment() *Environment {
+	s := make(map[string]Object)
+	c := make(map[string]Object)
+	return &Environment{store: s, outer: nil, constants: c}
+}
+
+// NewEnclosedEnvironment creates an enclosed environment.
+func NewEnclosedEnvironment(outer *Environment) *Environment {
+	env := NewEnvironment()
+	env.outer = outer
+	return env
+}
+
+// Get retrieves a variable from the environment.
+func (e *Environment) Get(name string) (Object, bool) {
+	obj, ok := e.store[name]
+	if !ok && e.outer != nil {
+		obj, ok = e.outer.Get(name)
+	}
+	return obj, ok
+}
+
+// Set sets a variable in the current environment.
+func (e *Environment) Set(name string, val Object) Object {
+	e.store[name] = val
+	return val
+}
+
+// SetLocal sets a variable in the local environment only (no lookup in outer scopes).
+func (e *Environment) SetLocal(name string, val Object) Object {
+	e.store[name] = val
+	return val
+}
+
+// Update updates a variable, looking up the scope where it was defined.
+func (e *Environment) Update(name string, val Object) Object {
+	if _, ok := e.store[name]; ok {
+		e.store[name] = val
+		return val
+	}
+	if e.outer != nil {
+		return e.outer.Update(name, val)
+	}
+	// Variable not found, set in current scope
+	e.store[name] = val
+	return val
+}
+
+// GetConstant retrieves a constant.
+func (e *Environment) GetConstant(name string) (Object, bool) {
+	obj, ok := e.constants[name]
+	if !ok && e.outer != nil {
+		obj, ok = e.outer.GetConstant(name)
+	}
+	return obj, ok
+}
+
+// SetConstant sets a constant.
+func (e *Environment) SetConstant(name string, val Object) Object {
+	e.constants[name] = val
+	return val
+}
+
+// Self returns the current self object.
+func (e *Environment) Self() Object {
+	if e.self != nil {
+		return e.self
+	}
+	if e.outer != nil {
+		return e.outer.Self()
+	}
+	return nil
+}
+
+// SetSelf sets the self object.
+func (e *Environment) SetSelf(self Object) {
+	e.self = self
+}
+
+// Block returns the current block.
+func (e *Environment) Block() *Proc {
+	if e.block != nil {
+		return e.block
+	}
+	if e.outer != nil {
+		return e.outer.Block()
+	}
+	return nil
+}
+
+// SetBlock sets the current block.
+func (e *Environment) SetBlock(block *Proc) {
+	e.block = block
+}
+
+// Outer returns the outer environment.
+func (e *Environment) Outer() *Environment {
+	return e.outer
+}
+
+// CurrentClass returns the current class context for method definitions.
+func (e *Environment) CurrentClass() *RubyClass {
+	if e.currentClass != nil {
+		return e.currentClass
+	}
+	if e.outer != nil {
+		return e.outer.CurrentClass()
+	}
+	return nil
+}
+
+// SetCurrentClass sets the current class context.
+func (e *Environment) SetCurrentClass(class *RubyClass) {
+	e.currentClass = class
+}
+
+// CurrentModule returns the current module context for method definitions.
+func (e *Environment) CurrentModule() *RubyModule {
+	if e.currentModule != nil {
+		return e.currentModule
+	}
+	if e.outer != nil {
+		return e.outer.CurrentModule()
+	}
+	return nil
+}
+
+// SetCurrentModule sets the current module context.
+func (e *Environment) SetCurrentModule(mod *RubyModule) {
+	e.currentModule = mod
+}
