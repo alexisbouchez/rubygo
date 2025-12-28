@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/alexisbouchez/rubylexer/ast"
 )
@@ -37,6 +38,8 @@ const (
 	MODULE_OBJ       Type = "MODULE"
 	INSTANCE_OBJ     Type = "INSTANCE"
 	EXCEPTION_OBJ    Type = "EXCEPTION"
+	TIME_OBJ         Type = "TIME"
+	DATE_OBJ         Type = "DATE"
 )
 
 // Object is the base interface for all Ruby objects.
@@ -281,6 +284,26 @@ func (r *Regexp) ReplaceAll(s, replacement string) string {
 	}
 	return r.Compiled.ReplaceAllString(s, replacement)
 }
+
+// Time represents a Ruby Time object.
+type Time struct {
+	Value time.Time
+}
+
+func (t *Time) Type() Type         { return TIME_OBJ }
+func (t *Time) Inspect() string    { return t.Value.Format("2006-01-02 15:04:05 -0700") }
+func (t *Time) Class() *RubyClass  { return nil } // Set dynamically
+func (t *Time) IsTruthy() bool     { return true }
+
+// Date represents a Ruby Date object.
+type Date struct {
+	Value time.Time
+}
+
+func (d *Date) Type() Type         { return DATE_OBJ }
+func (d *Date) Inspect() string    { return d.Value.Format("2006-01-02") }
+func (d *Date) Class() *RubyClass  { return nil } // Set dynamically
+func (d *Date) IsTruthy() bool     { return true }
 
 // ReturnValue wraps a return value.
 type ReturnValue struct {

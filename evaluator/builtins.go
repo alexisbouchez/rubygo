@@ -66,6 +66,10 @@ func getBuiltinMethod(receiver object.Object, name string) *object.Builtin {
 		typeBuiltin = getProcBuiltins()[name]
 	case object.REGEXP_OBJ:
 		typeBuiltin = getRegexpBuiltins()[name]
+	case object.TIME_OBJ:
+		typeBuiltin = getTimeBuiltins()[name]
+	case object.DATE_OBJ:
+		typeBuiltin = getDateBuiltins()[name]
 	case object.CLASS_OBJ:
 		// Check module builtins first (attr_accessor, include, etc.)
 		if b := getModuleBuiltins()[name]; b != nil {

@@ -435,6 +435,10 @@ func evalConstant(node *ast.Constant, env *object.Environment) object.Object {
 		return FileClass
 	case "Dir":
 		return DirClass
+	case "Time":
+		return TimeClass
+	case "Date":
+		return DateClass
 	}
 
 	return newError("uninitialized constant %s", node.Value)
