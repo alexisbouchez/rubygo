@@ -4,6 +4,7 @@ package evaluator
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/alexisbouchez/rubylexer/ast"
 	"github.com/alexisbouchez/rubylexer/object"
@@ -567,6 +568,10 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 		return evalRegexpStringInfixExpression(operator, left, right)
 	case left.Type() == object.ARRAY_OBJ:
 		return evalArrayInfixExpression(operator, left, right)
+	case left.Type() == object.TIME_OBJ:
+		return evalTimeInfixExpression(operator, left, right)
+	case left.Type() == object.DATE_OBJ:
+		return evalDateInfixExpression(operator, left, right)
 	case operator == "==":
 		return object.NativeToBool(objectsEqual(left, right))
 	case operator == "!=":
@@ -830,6 +835,97 @@ func evalArrayInfixExpression(operator string, left, right object.Object) object
 	}
 
 	return newError("undefined method `%s' for Array", operator)
+}
+
+func evalTimeInfixExpression(operator string, left, right object.Object) object.Object {
+	leftTime := left.(*object.Time)
+
+	switch operator {
+	case "+":
+		switch r := right.(type) {
+		case *object.Integer:
+			return &object.Time{Value: leftTime.Value.Add(time.Duration(r.Value) * time.Second)}
+		case *object.Float:
+			return &object.Time{Value: leftTime.Value.Add(time.Duration(r.Value * float64(time.Second)))}
+		}
+	case "-":
+		switch r := right.(type) {
+		case *object.Integer:
+			return &object.Time{Value: leftTime.Value.Add(-time.Duration(r.Value) * time.Second)}
+		case *object.Float:
+			return &object.Time{Value: leftTime.Value.Add(-time.Duration(r.Value * float64(time.Second)))}
+		case *object.Time:
+			diff := leftTime.Value.Sub(r.Value)
+			return &object.Float{Value: diff.Seconds()}
+		}
+	case "<":
+		if r, ok := right.(*object.Time); ok {
+			return object.NativeToBool(leftTime.Value.Before(r.Value))
+		}
+	case ">":
+		if r, ok := right.(*object.Time); ok {
+			return object.NativeToBool(leftTime.Value.After(r.Value))
+		}
+	case "<=":
+		if r, ok := right.(*object.Time); ok {
+			return object.NativeToBool(!leftTime.Value.After(r.Value))
+		}
+	case ">=":
+		if r, ok := right.(*object.Time); ok {
+			return object.NativeToBool(!leftTime.Value.Before(r.Value))
+		}
+	case "==":
+		if r, ok := right.(*object.Time); ok {
+			return object.NativeToBool(leftTime.Value.Equal(r.Value))
+		}
+		return object.FALSE
+	case "<=>":
+		if r, ok := right.(*object.Time); ok {
+			if leftTime.Value.Before(r.Value) {
+				return &object.Integer{Value: -1}
+			} else if leftTime.Value.After(r.Value) {
+				return &object.Integer{Value: 1}
+			}
+			return &object.Integer{Value: 0}
+		}
+		return object.NIL
+	}
+
+	return newError("undefined method `%s' for Time", operator)
+}
+
+func evalDateInfixExpression(operator string, left, right object.Object) object.Object {
+	leftDate := left.(*object.Date)
+
+	switch operator {
+	case "+":
+		if r, ok := right.(*object.Integer); ok {
+			return &object.Date{Value: leftDate.Value.AddDate(0, 0, int(r.Value))}
+		}
+	case "-":
+		switch r := right.(type) {
+		case *object.Integer:
+			return &object.Date{Value: leftDate.Value.AddDate(0, 0, -int(r.Value))}
+		case *object.Date:
+			diff := leftDate.Value.Sub(r.Value)
+			return &object.Integer{Value: int64(diff.Hours() / 24)}
+		}
+	case "<":
+		if r, ok := right.(*object.Date); ok {
+			return object.NativeToBool(leftDate.Value.Before(r.Value))
+		}
+	case ">":
+		if r, ok := right.(*object.Date); ok {
+			return object.NativeToBool(leftDate.Value.After(r.Value))
+		}
+	case "==":
+		if r, ok := right.(*object.Date); ok {
+			return object.NativeToBool(leftDate.Value.Equal(r.Value))
+		}
+		return object.FALSE
+	}
+
+	return newError("undefined method `%s' for Date", operator)
 }
 
 func evalCaseEquality(left, right object.Object) object.Object {
