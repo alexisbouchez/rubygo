@@ -45,6 +45,7 @@ const (
 	ENUMERATOR_OBJ   Type = "ENUMERATOR"
 	BINDING_OBJ      Type = "BINDING"
 	REFINEMENT_OBJ   Type = "REFINEMENT"
+	TRACEPOINT_OBJ   Type = "TRACEPOINT"
 )
 
 // Object is the base interface for all Ruby objects.
@@ -501,6 +502,40 @@ func (b *Binding) Inspect() string    { return "#<Binding>" }
 func (b *Binding) Class() *RubyClass  { return BindingClass }
 func (b *Binding) IsTruthy() bool     { return true }
 
+// TracePointEvent represents a trace event type.
+type TracePointEvent string
+
+const (
+	TraceEventCall    TracePointEvent = "call"
+	TraceEventReturn  TracePointEvent = "return"
+	TraceEventLine    TracePointEvent = "line"
+	TraceEventRaise   TracePointEvent = "raise"
+	TraceEventBCall   TracePointEvent = "b_call"
+	TraceEventBReturn TracePointEvent = "b_return"
+	TraceEventClass   TracePointEvent = "class"
+	TraceEventEnd     TracePointEvent = "end"
+)
+
+// TracePoint represents a Ruby TracePoint for tracing program execution.
+type TracePoint struct {
+	Events     []TracePointEvent // Events to trace
+	Block      *Proc             // Block to call on event
+	Enabled    bool              // Whether tracing is active
+	// Current event info (set when block is called)
+	Event      TracePointEvent
+	MethodID   string
+	Path       string
+	LineNo     int
+	Self_      Object
+	ReturnVal  Object
+	RaisedExc  Object
+}
+
+func (tp *TracePoint) Type() Type         { return TRACEPOINT_OBJ }
+func (tp *TracePoint) Inspect() string    { return "#<TracePoint>" }
+func (tp *TracePoint) Class() *RubyClass  { return TracePointClass }
+func (tp *TracePoint) IsTruthy() bool     { return true }
+
 // RubyClass represents a Ruby class.
 type RubyClass struct {
 	Name            string
@@ -641,6 +676,7 @@ var (
 	EnumeratorClass      *RubyClass
 	LazyEnumeratorClass  *RubyClass
 	BindingClass         *RubyClass
+	TracePointClass      *RubyClass
 	KernelModule         *RubyModule
 	ComparableModule     *RubyModule
 	EnumerableModule     *RubyModule
@@ -874,6 +910,14 @@ func init() {
 
 	BindingClass = &RubyClass{
 		Name:         "Binding",
+		Superclass:   ObjectClass,
+		Methods:      make(map[string]Object),
+		ClassMethods: make(map[string]Object),
+		Constants:    make(map[string]Object),
+	}
+
+	TracePointClass = &RubyClass{
+		Name:         "TracePoint",
 		Superclass:   ObjectClass,
 		Methods:      make(map[string]Object),
 		ClassMethods: make(map[string]Object),

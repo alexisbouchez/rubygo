@@ -468,6 +468,8 @@ func evalConstant(node *ast.Constant, env *object.Environment) object.Object {
 		return YAMLModule
 	case "OpenStruct":
 		return OpenStructClass
+	case "TracePoint":
+		return object.TracePointClass
 	}
 
 	return newError("uninitialized constant %s", node.Value)
@@ -1376,6 +1378,14 @@ func callMethod(receiver object.Object, methodName string, args []object.Object,
 		}
 		// Check for 'new' method
 		if methodName == "new" {
+			// Special case for TracePoint.new
+			if class == object.TracePointClass {
+				callEnv := object.NewEnclosedEnvironment(env)
+				if block != nil {
+					callEnv.SetBlock(block)
+				}
+				return TracePointNew(callEnv, args)
+			}
 			return createInstance(class, args, block, env)
 		}
 	}
@@ -1538,8 +1548,16 @@ func applyMethodWithContext(method object.Object, receiver object.Object, args [
 			}
 		}
 
+		// Fire :call trace event
+		FireTraceEvent(object.TraceEventCall, m.Name, "", 0, receiver, nil, nil, extendedEnv)
+
 		result := evalBlockBody(m.Body, extendedEnv)
-		return unwrapReturnValue(result)
+		returnVal := unwrapReturnValue(result)
+
+		// Fire :return trace event
+		FireTraceEvent(object.TraceEventReturn, m.Name, "", 0, receiver, returnVal, nil, extendedEnv)
+
+		return returnVal
 
 	case *object.Builtin:
 		return m.Fn(receiver, env, args...)

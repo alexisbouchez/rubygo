@@ -1,5 +1,41 @@
 package object
 
+import "sync"
+
+// Global active trace points
+var (
+	activeTracePoints   []*TracePoint
+	tracePointsMutex    sync.RWMutex
+)
+
+// AddActiveTracePoint adds a trace point to the active list.
+func AddActiveTracePoint(tp *TracePoint) {
+	tracePointsMutex.Lock()
+	defer tracePointsMutex.Unlock()
+	activeTracePoints = append(activeTracePoints, tp)
+}
+
+// RemoveActiveTracePoint removes a trace point from the active list.
+func RemoveActiveTracePoint(tp *TracePoint) {
+	tracePointsMutex.Lock()
+	defer tracePointsMutex.Unlock()
+	for i, t := range activeTracePoints {
+		if t == tp {
+			activeTracePoints = append(activeTracePoints[:i], activeTracePoints[i+1:]...)
+			return
+		}
+	}
+}
+
+// GetActiveTracePoints returns a copy of active trace points.
+func GetActiveTracePoints() []*TracePoint {
+	tracePointsMutex.RLock()
+	defer tracePointsMutex.RUnlock()
+	result := make([]*TracePoint, len(activeTracePoints))
+	copy(result, activeTracePoints)
+	return result
+}
+
 // Environment holds variable bindings.
 type Environment struct {
 	store             map[string]Object

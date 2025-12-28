@@ -92,6 +92,8 @@ func getBuiltinMethod(receiver object.Object, name string) *object.Builtin {
 		typeBuiltin = getEnumeratorBuiltins()[name]
 	case object.BINDING_OBJ:
 		typeBuiltin = getBindingBuiltins()[name]
+	case object.TRACEPOINT_OBJ:
+		typeBuiltin = getTracePointBuiltins()[name]
 	}
 
 	if typeBuiltin != nil {
