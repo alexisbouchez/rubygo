@@ -445,6 +445,7 @@ func getObjectBuiltins() map[string]*object.Builtin {
 					return receiver
 				},
 			},
+			"to_json": getToJSONBuiltin(),
 		}
 	})
 	return objectBuiltinsMap

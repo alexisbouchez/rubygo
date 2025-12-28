@@ -1,4 +1,3 @@
-Time/Date classes
 Struct class
 JSON module
 YAML module

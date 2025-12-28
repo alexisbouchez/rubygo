@@ -440,6 +440,8 @@ func evalConstant(node *ast.Constant, env *object.Environment) object.Object {
 		return TimeClass
 	case "Date":
 		return DateClass
+	case "JSON":
+		return JSONModule
 	}
 
 	return newError("uninitialized constant %s", node.Value)
@@ -1332,6 +1334,13 @@ func callMethod(receiver object.Object, methodName string, args []object.Object,
 		// Check for 'new' method
 		if methodName == "new" {
 			return createInstance(class, args, block, env)
+		}
+	}
+
+	// Check if receiver is a module (module method call)
+	if mod, ok := receiver.(*object.RubyModule); ok {
+		if method, ok := mod.Methods[methodName]; ok {
+			return applyMethod(method, receiver, args, block, env)
 		}
 	}
 
