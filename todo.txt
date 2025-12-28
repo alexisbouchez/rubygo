@@ -1,10 +1,8 @@
 Struct class
-JSON module
 YAML module
 Exception handling improvements
 Method visibility (private/protected)
 Constants/namespacing (Module::Class::CONSTANT)
-Safe navigation operator (&.)
 Heredocs
 OpenStruct
 Enumerator/lazy enumeration

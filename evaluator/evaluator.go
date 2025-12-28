@@ -442,6 +442,8 @@ func evalConstant(node *ast.Constant, env *object.Environment) object.Object {
 		return DateClass
 	case "JSON":
 		return JSONModule
+	case "Struct":
+		return StructClass
 	}
 
 	return newError("uninitialized constant %s", node.Value)
@@ -1131,6 +1133,13 @@ func evalIndex(left, index object.Object) object.Object {
 		return evalStringIndex(left, index)
 	case left.Type() == object.STRING_OBJ && index.Type() == object.RANGE_OBJ:
 		return evalStringRangeIndex(left, index)
+	case left.Type() == object.INSTANCE_OBJ:
+		// Check if instance's class has a [] method
+		inst := left.(*object.Instance)
+		if method, ok := inst.Class_.LookupMethod("[]"); ok {
+			return applyMethod(method, left, []object.Object{index}, nil, nil)
+		}
+		return newError("undefined method `[]' for %s", inst.Class_.Name)
 	default:
 		return newError("index operator not supported: %s", left.Type())
 	}

@@ -418,12 +418,13 @@ func (b *Builtin) IsTruthy() bool  { return true }
 
 // RubyClass represents a Ruby class.
 type RubyClass struct {
-	Name           string
-	Superclass     *RubyClass
-	Methods        map[string]Object // Method objects (Method or Builtin)
-	ClassMethods   map[string]Object // Class methods
-	Constants      map[string]Object
+	Name            string
+	Superclass      *RubyClass
+	Methods         map[string]Object // Method objects (Method or Builtin)
+	ClassMethods    map[string]Object // Class methods
+	Constants       map[string]Object
 	IncludedModules []*RubyModule
+	StructMembers   []string // For Struct subclasses
 }
 
 func (c *RubyClass) Type() Type      { return CLASS_OBJ }
