@@ -990,6 +990,16 @@ func evalAssignment(node *ast.AssignmentExpression, env *object.Environment) obj
 		globalVariables[target.Name] = val
 		return val
 	case *ast.Constant:
+		// Store constant in current class/module if inside one
+		self := env.Self()
+		if class, ok := self.(*object.RubyClass); ok {
+			class.Constants[target.Value] = val
+			return val
+		}
+		if mod, ok := self.(*object.RubyModule); ok {
+			mod.Constants[target.Value] = val
+			return val
+		}
 		return env.SetConstant(target.Value, val)
 	case *ast.IndexExpression:
 		return evalIndexAssignment(target, val, env)
@@ -1945,8 +1955,16 @@ func evalClassDefinition(node *ast.ClassDefinition, env *object.Environment) obj
 		Constants:    make(map[string]object.Object),
 	}
 
-	// Store in constants
+	// Always store in environment for lookup
 	env.SetConstant(node.Name.Value, class)
+
+	// Also store in parent class/module if nested
+	self := env.Self()
+	if parentClass, ok := self.(*object.RubyClass); ok {
+		parentClass.Constants[node.Name.Value] = class
+	} else if parentMod, ok := self.(*object.RubyModule); ok {
+		parentMod.Constants[node.Name.Value] = class
+	}
 
 	// Evaluate class body with class as self
 	classEnv := object.NewEnclosedEnvironment(env)
@@ -1963,7 +1981,16 @@ func evalModuleDefinition(node *ast.ModuleDefinition, env *object.Environment) o
 		Constants: make(map[string]object.Object),
 	}
 
+	// Always store in environment for lookup
 	env.SetConstant(node.Name.Value, module)
+
+	// Also store in parent class/module if nested
+	self := env.Self()
+	if parentClass, ok := self.(*object.RubyClass); ok {
+		parentClass.Constants[node.Name.Value] = module
+	} else if parentMod, ok := self.(*object.RubyModule); ok {
+		parentMod.Constants[node.Name.Value] = module
+	}
 
 	moduleEnv := object.NewEnclosedEnvironment(env)
 	moduleEnv.SetSelf(module)
