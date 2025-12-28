@@ -191,6 +191,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.YieldExpression:
 		return evalYieldExpression(node, env)
 
+	case *ast.SuperExpression:
+		return evalSuperExpression(node, env)
+
 	case *ast.Lambda:
 		return evalLambda(node, env)
 
@@ -1371,8 +1374,8 @@ func callMethod(receiver object.Object, methodName string, args []object.Object,
 
 	// Look up instance method
 	if class := receiver.Class(); class != nil {
-		if method, ok := class.LookupMethod(methodName); ok {
-			return applyMethod(method, receiver, args, block, env)
+		if method, defClass := lookupMethodWithClass(class, methodName); method != nil {
+			return applyMethodWithContext(method, receiver, args, block, env, defClass)
 		}
 	}
 
@@ -1404,12 +1407,23 @@ func callMethod(receiver object.Object, methodName string, args []object.Object,
 }
 
 func applyMethod(method object.Object, receiver object.Object, args []object.Object, block *object.Proc, env *object.Environment) object.Object {
+	return applyMethodWithContext(method, receiver, args, block, env, nil)
+}
+
+func applyMethodWithContext(method object.Object, receiver object.Object, args []object.Object, block *object.Proc, env *object.Environment, definingClass *object.RubyClass) object.Object {
 	switch m := method.(type) {
 	case *object.Method:
 		extendedEnv := object.NewEnclosedEnvironment(m.Env)
 		extendedEnv.SetSelf(receiver)
 		if block != nil {
 			extendedEnv.SetBlock(block)
+		}
+
+		// Set method context for super calls
+		extendedEnv.SetCurrentMethod(m.Name)
+		extendedEnv.SetMethodArgs(args)
+		if definingClass != nil {
+			extendedEnv.SetDefiningClass(definingClass)
 		}
 
 		// Separate positional and keyword arguments
@@ -1496,13 +1510,85 @@ func createInstance(class *object.RubyClass, args []object.Object, block *object
 	}
 
 	// Call initialize if it exists
-	if method, ok := class.LookupMethod("initialize"); ok {
+	if method, defClass := lookupMethodWithClass(class, "initialize"); method != nil {
 		instanceEnv := object.NewEnclosedEnvironment(env)
 		instanceEnv.SetSelf(instance)
-		applyMethod(method, instance, args, block, instanceEnv)
+		applyMethodWithContext(method, instance, args, block, instanceEnv, defClass)
 	}
 
 	return instance
+}
+
+// lookupMethodWithClass finds a method and returns the class where it was defined
+func lookupMethodWithClass(class *object.RubyClass, name string) (object.Object, *object.RubyClass) {
+	for c := class; c != nil; c = c.Superclass {
+		if method, ok := c.Methods[name]; ok {
+			return method, c
+		}
+		// Check included modules
+		for i := len(c.IncludedModules) - 1; i >= 0; i-- {
+			if method, ok := c.IncludedModules[i].Methods[name]; ok {
+				return method, c // Return the class that included the module
+			}
+		}
+	}
+	return nil, nil
+}
+
+func evalSuperExpression(node *ast.SuperExpression, env *object.Environment) object.Object {
+	// Get current method context
+	methodName := env.CurrentMethod()
+	if methodName == "" {
+		return newError("super called outside of method")
+	}
+
+	// Get the receiver (self)
+	receiver := env.Self()
+	if receiver == nil {
+		return newError("super called without receiver")
+	}
+
+	// Determine arguments to use
+	var args []object.Object
+	if node.HasParens && len(node.Arguments) == 0 {
+		// super() - call with no arguments
+		args = []object.Object{}
+	} else if len(node.Arguments) > 0 {
+		// super(args) - call with specified arguments
+		args = make([]object.Object, len(node.Arguments))
+		for i, argExpr := range node.Arguments {
+			arg := Eval(argExpr, env)
+			if isError(arg) {
+				return arg
+			}
+			args[i] = arg
+		}
+	} else {
+		// super - call with original arguments
+		args = env.MethodArgs()
+		if args == nil {
+			args = []object.Object{}
+		}
+	}
+
+	// Find the superclass method
+	definingClass := env.DefiningClass()
+	if definingClass == nil {
+		// Try to get from receiver's class
+		definingClass = receiver.Class()
+	}
+
+	if definingClass == nil || definingClass.Superclass == nil {
+		return newError("no superclass method `%s'", methodName)
+	}
+
+	// Look for the method in the superclass chain
+	method, superDefClass := lookupMethodWithClass(definingClass.Superclass, methodName)
+	if method == nil {
+		return newError("super: no superclass method `%s'", methodName)
+	}
+
+	return applyMethodWithContext(method, receiver, args, env.Block(), env, superDefClass)
 }
 
 // Control flow

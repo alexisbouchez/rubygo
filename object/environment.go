@@ -9,7 +9,10 @@ type Environment struct {
 	block           *Proc
 	currentClass    *RubyClass
 	currentModule   *RubyModule
-	singletonTarget Object // Target object for singleton class (class << obj)
+	singletonTarget Object   // Target object for singleton class (class << obj)
+	currentMethod   string   // Current method name (for super)
+	methodArgs      []Object // Original method arguments (for super without args)
+	definingClass   *RubyClass // Class where current method is defined
 }
 
 // NewEnvironment creates a new environment.
@@ -159,4 +162,52 @@ func (e *Environment) SingletonTarget() Object {
 // SetSingletonTarget sets the singleton target object.
 func (e *Environment) SetSingletonTarget(obj Object) {
 	e.singletonTarget = obj
+}
+
+// CurrentMethod returns the current method name (for super calls).
+func (e *Environment) CurrentMethod() string {
+	if e.currentMethod != "" {
+		return e.currentMethod
+	}
+	if e.outer != nil {
+		return e.outer.CurrentMethod()
+	}
+	return ""
+}
+
+// SetCurrentMethod sets the current method name.
+func (e *Environment) SetCurrentMethod(name string) {
+	e.currentMethod = name
+}
+
+// MethodArgs returns the original method arguments (for super without args).
+func (e *Environment) MethodArgs() []Object {
+	if e.methodArgs != nil {
+		return e.methodArgs
+	}
+	if e.outer != nil {
+		return e.outer.MethodArgs()
+	}
+	return nil
+}
+
+// SetMethodArgs sets the original method arguments.
+func (e *Environment) SetMethodArgs(args []Object) {
+	e.methodArgs = args
+}
+
+// DefiningClass returns the class where the current method is defined.
+func (e *Environment) DefiningClass() *RubyClass {
+	if e.definingClass != nil {
+		return e.definingClass
+	}
+	if e.outer != nil {
+		return e.outer.DefiningClass()
+	}
+	return nil
+}
+
+// SetDefiningClass sets the class where the current method is defined.
+func (e *Environment) SetDefiningClass(class *RubyClass) {
+	e.definingClass = class
 }
