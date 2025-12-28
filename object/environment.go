@@ -8,6 +8,66 @@ var (
 	tracePointsMutex    sync.RWMutex
 )
 
+// ObjectSpace tracking
+var (
+	trackedObjects   []Object
+	objectsMutex     sync.RWMutex
+	nextObjectID     int64
+	objectIDMap      map[Object]int64
+)
+
+func init() {
+	objectIDMap = make(map[Object]int64)
+}
+
+// TrackObject adds an object to the ObjectSpace tracking.
+func TrackObject(obj Object) int64 {
+	objectsMutex.Lock()
+	defer objectsMutex.Unlock()
+
+	// Check if already tracked
+	if id, exists := objectIDMap[obj]; exists {
+		return id
+	}
+
+	nextObjectID++
+	objectIDMap[obj] = nextObjectID
+	trackedObjects = append(trackedObjects, obj)
+	return nextObjectID
+}
+
+// GetObjectID returns the object ID.
+func GetObjectID(obj Object) int64 {
+	objectsMutex.RLock()
+	defer objectsMutex.RUnlock()
+
+	if id, exists := objectIDMap[obj]; exists {
+		return id
+	}
+	return 0
+}
+
+// GetTrackedObjects returns all tracked objects.
+func GetTrackedObjects() []Object {
+	objectsMutex.RLock()
+	defer objectsMutex.RUnlock()
+	result := make([]Object, len(trackedObjects))
+	copy(result, trackedObjects)
+	return result
+}
+
+// CountObjectsByType counts objects by type.
+func CountObjectsByType() map[Type]int {
+	objectsMutex.RLock()
+	defer objectsMutex.RUnlock()
+
+	counts := make(map[Type]int)
+	for _, obj := range trackedObjects {
+		counts[obj.Type()]++
+	}
+	return counts
+}
+
 // AddActiveTracePoint adds a trace point to the active list.
 func AddActiveTracePoint(tp *TracePoint) {
 	tracePointsMutex.Lock()

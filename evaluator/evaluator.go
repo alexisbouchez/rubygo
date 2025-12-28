@@ -470,6 +470,8 @@ func evalConstant(node *ast.Constant, env *object.Environment) object.Object {
 		return OpenStructClass
 	case "TracePoint":
 		return object.TracePointClass
+	case "ObjectSpace":
+		return GetObjectSpaceModule()
 	}
 
 	return newError("uninitialized constant %s", node.Value)
@@ -1560,7 +1562,12 @@ func applyMethodWithContext(method object.Object, receiver object.Object, args [
 		return returnVal
 
 	case *object.Builtin:
-		return m.Fn(receiver, env, args...)
+		callEnv := object.NewEnclosedEnvironment(env)
+		callEnv.SetSelf(receiver)
+		if block != nil {
+			callEnv.SetBlock(block)
+		}
+		return m.Fn(receiver, callEnv, args...)
 
 	default:
 		return newError("not a method: %s", method.Type())
@@ -1572,6 +1579,9 @@ func createInstance(class *object.RubyClass, args []object.Object, block *object
 		Class_:            class,
 		InstanceVariables: make(map[string]object.Object),
 	}
+
+	// Track object for ObjectSpace
+	object.TrackObject(instance)
 
 	// Call initialize if it exists
 	if method, defClass := lookupMethodWithClass(class, "initialize"); method != nil {
