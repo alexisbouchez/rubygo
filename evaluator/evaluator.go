@@ -446,6 +446,8 @@ func evalConstant(node *ast.Constant, env *object.Environment) object.Object {
 		return StructClass
 	case "YAML":
 		return YAMLModule
+	case "OpenStruct":
+		return OpenStructClass
 	}
 
 	return newError("uninitialized constant %s", node.Value)

@@ -1,4 +1,3 @@
-YAML module
 Exception handling improvements
 Method visibility (private/protected)
 Constants/namespacing (Module::Class::CONSTANT)
