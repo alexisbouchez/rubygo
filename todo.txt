@@ -1,4 +1,3 @@
-Struct class
 YAML module
 Exception handling improvements
 Method visibility (private/protected)
