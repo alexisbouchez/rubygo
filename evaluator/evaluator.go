@@ -27,6 +27,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.ClassDefinition:
 		return evalClassDefinition(node, env)
 
+	case *ast.SingletonClassDefinition:
+		return evalSingletonClassDefinition(node, env)
+
 	case *ast.ModuleDefinition:
 		return evalModuleDefinition(node, env)
 
@@ -1357,6 +1360,15 @@ func callMethod(receiver object.Object, methodName string, args []object.Object,
 		}
 	}
 
+	// Check for singleton methods on instances (highest priority for instances)
+	if inst, ok := receiver.(*object.Instance); ok {
+		if inst.SingletonMethods != nil {
+			if method, ok := inst.SingletonMethods[methodName]; ok {
+				return applyMethod(method, receiver, args, block, env)
+			}
+		}
+	}
+
 	// Look up instance method
 	if class := receiver.Class(); class != nil {
 		if method, ok := class.LookupMethod(methodName); ok {
@@ -1768,6 +1780,27 @@ func evalMethodDefinition(node *ast.MethodDefinition, env *object.Environment) o
 		Env:        env,
 	}
 
+	// Check for singleton class context (class << obj)
+	if singletonTarget := env.SingletonTarget(); singletonTarget != nil {
+		switch target := singletonTarget.(type) {
+		case *object.RubyClass:
+			// class << SomeClass adds class methods
+			target.ClassMethods[node.Name] = method
+			return &object.Symbol{Value: node.Name}
+		case *object.RubyModule:
+			// class << SomeModule adds module methods
+			target.Methods[node.Name] = method
+			return &object.Symbol{Value: node.Name}
+		case *object.Instance:
+			// class << instance adds singleton methods to that instance
+			if target.SingletonMethods == nil {
+				target.SingletonMethods = make(map[string]object.Object)
+			}
+			target.SingletonMethods[node.Name] = method
+			return &object.Symbol{Value: node.Name}
+		}
+	}
+
 	// Check for current class context (for class_eval)
 	if currentClass := env.CurrentClass(); currentClass != nil {
 		if node.Receiver != nil {
@@ -1851,6 +1884,26 @@ func evalModuleDefinition(node *ast.ModuleDefinition, env *object.Environment) o
 	evalBlockBody(node.Body, moduleEnv)
 
 	return module
+}
+
+func evalSingletonClassDefinition(node *ast.SingletonClassDefinition, env *object.Environment) object.Object {
+	// Evaluate the object to get the singleton class target
+	obj := Eval(node.Object, env)
+	if isError(obj) {
+		return obj
+	}
+
+	// Create a new environment for the singleton class body
+	singletonEnv := object.NewEnclosedEnvironment(env)
+	singletonEnv.SetSelf(obj)
+
+	// Mark this environment as a singleton class context
+	singletonEnv.SetSingletonTarget(obj)
+
+	// Evaluate the body - method definitions will check for singleton context
+	result := evalBlockBody(node.Body, singletonEnv)
+
+	return result
 }
 
 func evalSplatExpression(node *ast.SplatExpression, env *object.Environment) object.Object {

@@ -492,6 +492,7 @@ func (m *RubyModule) IsTruthy() bool  { return true }
 type Instance struct {
 	Class_            *RubyClass
 	InstanceVariables map[string]Object
+	SingletonMethods  map[string]Object // Singleton methods for this specific instance
 }
 
 func (i *Instance) Type() Type      { return INSTANCE_OBJ }

@@ -2,13 +2,14 @@ package object
 
 // Environment holds variable bindings.
 type Environment struct {
-	store         map[string]Object
-	outer         *Environment
-	constants     map[string]Object
-	self          Object
-	block         *Proc
-	currentClass  *RubyClass
-	currentModule *RubyModule
+	store           map[string]Object
+	outer           *Environment
+	constants       map[string]Object
+	self            Object
+	block           *Proc
+	currentClass    *RubyClass
+	currentModule   *RubyModule
+	singletonTarget Object // Target object for singleton class (class << obj)
 }
 
 // NewEnvironment creates a new environment.
@@ -142,4 +143,20 @@ func (e *Environment) CurrentModule() *RubyModule {
 // SetCurrentModule sets the current module context.
 func (e *Environment) SetCurrentModule(mod *RubyModule) {
 	e.currentModule = mod
+}
+
+// SingletonTarget returns the singleton target object (for class << obj).
+func (e *Environment) SingletonTarget() Object {
+	if e.singletonTarget != nil {
+		return e.singletonTarget
+	}
+	if e.outer != nil {
+		return e.outer.SingletonTarget()
+	}
+	return nil
+}
+
+// SetSingletonTarget sets the singleton target object.
+func (e *Environment) SetSingletonTarget(obj Object) {
+	e.singletonTarget = obj
 }

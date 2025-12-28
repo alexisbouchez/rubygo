@@ -1943,7 +1943,7 @@ func (p *Parser) parseMethodBody() *ast.BlockBody {
 	return body
 }
 
-func (p *Parser) parseClassDefinition() *ast.ClassDefinition {
+func (p *Parser) parseClassDefinition() ast.Statement {
 	class := &ast.ClassDefinition{Token: p.curToken}
 
 	p.nextToken()
@@ -1967,19 +1967,15 @@ func (p *Parser) parseClassDefinition() *ast.ClassDefinition {
 	return class
 }
 
-func (p *Parser) parseSingletonClassDefinition() *ast.ClassDefinition {
-	// This should return SingletonClassDefinition but for simplicity
-	// we'll use ClassDefinition
-	class := &ast.ClassDefinition{Token: p.curToken}
+func (p *Parser) parseSingletonClassDefinition() *ast.SingletonClassDefinition {
+	singleton := &ast.SingletonClassDefinition{Token: p.curToken}
 
 	p.nextToken() // move past <<
-	// Parse the object
-	obj := p.parseExpression(LOWEST)
+	// Parse the object (e.g., self, or any expression)
+	singleton.Object = p.parseExpression(LOWEST)
+	singleton.Body = p.parseClassBody()
 
-	class.Name = &ast.Constant{Token: p.curToken, Value: "<<" + obj.String()}
-	class.Body = p.parseClassBody()
-
-	return class
+	return singleton
 }
 
 func (p *Parser) parseClassBody() *ast.BlockBody {

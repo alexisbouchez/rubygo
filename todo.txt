@@ -3,7 +3,6 @@ Method visibility (private/protected)
 Constants/namespacing (Module::Class::CONSTANT)
 Heredocs
 Enumerator/lazy enumeration
-Singleton pattern (class << self)
 Super with arguments
 Binding class
 Refinements
